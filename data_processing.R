@@ -71,8 +71,12 @@ aiddata_cy_merge$any_loans <- 1
 japan_data <- read.csv("/Users/christianbaehr/Desktop/550 paper/data/AidDataCore_ResearchRelease_Level1_v3/AidDataCoreDonorRecipientYear_ResearchRelease_Level1_v3.1.csv",
                        stringsAsFactors = F)
 
+japan_data$year[japan_data$year==9999] <- NA
+
 #japan_data <- japan_data[japan_data$donor=="Japan", ]
 japan_data <- japan_data[japan_data$donor=="Asian Development Bank (ASDB)", ]
+
+#japan_data$project <- 1
 
 japan_data$recipient <- tolower(japan_data$recipient)
 
@@ -98,6 +102,11 @@ japan_data$recipient[japan_data$recipient=="viet nam"] <- "vietnam"
 japan_data$recipient[japan_data$recipient=="yemen"] <- "republic of yemen"
 
 japan_data$country_year <- paste(japan_data$recipient, japan_data$year)
+
+# japan_cy_all <- merge(aggregate(japan_data[, c("commitment_amount_usd_constant_sum")], by=list(japan_data$country_year), FUN=sum),
+#                       aggregate(japan_data[, c("project")], by=list(japan_data$country_year), FUN=sum),
+#                       by="Group.1",
+#                       all = T)
 
 names(japan_data)[names(japan_data)=="commitment_amount_usd_constant_sum"] <- "asdb_aidcommitments_constantusd"
 
@@ -177,6 +186,7 @@ aid_cols <- c("all_amount_usd2017",
               "asdb_aidcommitments_constantusd")
 
 full_data[, aid_cols] <- apply(full_data[, aid_cols], 2, function(x) ifelse(is.na(x), 0, x))
+full_data$asdb_aidcommitments_constantusd[full_data$year>2013] <- "."
 
 full_data$code[full_data$aclpname=="andorra"] <- "AND"
 full_data$code[full_data$aclpname=="romania"] <- "ROU"
@@ -191,8 +201,10 @@ write.csv(full_data, "/Users/christianbaehr/Desktop/550 paper/data/processeddata
 
 library(sf)
 
-gadm <- st_read("/Users/christianbaehr/Downloads/gadm36_levels_shp/gadm36_0.shp",
+gadm <- st_read("/Users/christianbaehr/Desktop/550 paper/data/gadm36_0/gadm36_0.shp",
                 stringsAsFactors=F)
+
+full_data <- data.frame(full_data)
 
 unique(full_data$aclpname[!(full_data$code %in% gadm$GID_0)])
 
@@ -200,13 +212,38 @@ sort(unique(gadm$NAME_0))
 gadm$GID_0[gadm$NAME_0=="Andorra"]
 gadm$GID_0[gadm$NAME_0=="Romania"]
 
-library(reshape)
-full_data_wide <- reshape(full_data, idvar="aclpcode", timevar="year", v.names="all_amount_usd2017", direction="wide")
+#library(reshape)
+#full_data_wide <- reshape(full_data, idvar="aclpcode", timevar="year", v.names="all_amount_usd2017", direction="wide")
 
+#full_data_wide <- aggregate(as.numeric(full_data$all_amount_usd2017), by=list(full_data$code), FUN = sum)
+full_data_wide <- aggregate(as.numeric(full_data$unsc), by=list(full_data$code), FUN = sum)
 
+gis_out <- merge(full_data_wide, gadm, by.x = "Group.1", by.y = "GID_0", all.y = T)
 
+gis_out_sf <- st_as_sf(gis_out)
 
+gis_out_sf$x <- ifelse(is.na(gis_out_sf$x), 0, gis_out_sf$x)
 
+permanent <- c("USA", "FRA", "GBR", "RUS", "CHN")
 
+gis_out_sf$permanent <- ifelse(gis_out_sf$Group.1 %in% permanent, 1, 0)
+
+write_sf(gis_out_sf, "/Users/christianbaehr/Desktop/aid_figure/unsc_years.shp")
+
+###
+
+full_data_wide <- aggregate(as.numeric(full_data$all_amount_usd2017), by=list(full_data$code), FUN = sum)
+
+gis_out <- merge(full_data_wide, gadm, by.x = "Group.1", by.y = "GID_0", all.y = T)
+
+gis_out_sf <- st_as_sf(gis_out)
+
+gis_out_sf$x <- ifelse(is.na(gis_out_sf$x), 0, gis_out_sf$x)
+
+#permanent <- c("USA", "FRA", "GBR", "RUS", "CHN")
+
+#gis_out_sf$permanent <- ifelse(gis_out_sf$Group.1 %in% permanent, 1, 0)
+
+write_sf(gis_out_sf, "/Users/christianbaehr/Desktop/aid_figure/aid_distribution.shp")
 
 
